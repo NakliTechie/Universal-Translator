@@ -2,7 +2,7 @@
 
 A universal language translator that runs entirely inside your browser — no server, no API keys, no data leaving your device.
 
-**[→ Try it live](https://nakliTechie.github.io/Universal-Translator)**
+**[→ Try it live](https://nakliTechie.github.io/BabelLocal)**
 
 ## What it does
 
