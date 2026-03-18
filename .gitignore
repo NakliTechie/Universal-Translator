@@ -1,0 +1,12 @@
+# Claude Code local settings
+.claude/
+
+# macOS
+.DS_Store
+
+# Downloaded model files (large, fetched at runtime by the browser)
+models/
+
+# Node / misc
+node_modules/
+

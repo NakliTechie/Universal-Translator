@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Universal Translator</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f4f8;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+}
+
+.app { width: 100%; max-width: 960px; }
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+h1 { font-size: 1.5rem; font-weight: 700; color: #1a202c; }
+.badge {
+  font-size: 0.75rem;
+  background: #e6fffa;
+  color: #234e52;
+  border: 1px solid #81e6d9;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-weight: 500;
+}
+
+/* ── Card ── */
+.card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+
+/* ── Language bar ── */
+.lang-bar {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  gap: 8px;
+}
+.lang-select {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: white;
+  color: #2d3748;
+  cursor: pointer;
+  outline: none;
+}
+.lang-select:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+}
+.swap-btn {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  color: #4a5568;
+}
+.swap-btn:hover { background: #edf2f7; }
+
+/* ── Text panels ── */
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 260px;
+}
+.panel { display: flex; flex-direction: column; }
+.panel:first-child { border-right: 1px solid #e2e8f0; }
+
+textarea, .output {
+  flex: 1;
+  padding: 20px;
+  font-size: 1rem;
+  line-height: 1.6;
+  font-family: inherit;
+  min-height: 220px;
+}
+textarea {
+  border: none;
+  outline: none;
+  resize: none;
+  color: #2d3748;
+}
+textarea::placeholder { color: #a0aec0; }
+
+.output {
+  background: #fafbfc;
+  color: #2d3748;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+}
+.output.placeholder { color: #a0aec0; font-style: italic; }
+.output.streaming { color: #4a5568; }
+
+/* ── Panel footer ── */
+.panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.char-count { font-size: 0.75rem; color: #a0aec0; }
+.char-count.warn { color: #e53e3e; }
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #718096;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover { background: #e2e8f0; color: #2d3748; }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Action bar ── */
+.action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.auto-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #718096;
+  cursor: pointer;
+}
+.translate-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 22px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.translate-btn:hover:not(:disabled) { background: #5a67d8; }
+.translate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Progress panel ── */
+.progress-card {
+  margin-top: 12px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  padding: 16px;
+  display: none;
+}
+.progress-card.visible { display: block; }
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #4a5568;
+  margin-bottom: 8px;
+}
+.progress-track {
+  background: #e2e8f0;
+  border-radius: 8px;
+  height: 6px;
+  overflow: hidden;
+}
+.progress-fill {
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  height: 100%;
+  width: 0%;
+  border-radius: 8px;
+  transition: width 0.3s ease;
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #a0aec0;
+  display: inline-block;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.status-dot.ready { background: #48bb78; }
+.status-dot.loading { background: #ecc94b; animation: pulse 1s infinite; }
+.status-dot.error { background: #fc8181; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+
+.status-text {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #718096;
+}
+.model-tag {
+  font-size: 0.7rem;
+  color: #a0aec0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .panels { grid-template-columns: 1fr; }
+  .panel:first-child { border-right: none; border-bottom: 1px solid #e2e8f0; }
+  h1 { font-size: 1.2rem; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>🌍 Universal Translator</h1>
+    <span class="badge">⚡ Runs locally · No data sent</span>
+  </header>
+
+  <div class="card">
+    <!-- Language selector bar -->
+    <div class="lang-bar">
+      <select id="srcLang" class="lang-select"></select>
+      <button class="swap-btn" id="swapBtn" title="Swap languages">⇄</button>
+      <select id="tgtLang" class="lang-select"></select>
+    </div>
+
+    <!-- Source / target panels -->
+    <div class="panels">
+      <div class="panel">
+        <textarea id="input" placeholder="Enter text to translate…" maxlength="2000"></textarea>
+        <div class="panel-footer">
+          <span class="char-count" id="charCount">0 / 2000</span>
+          <button class="icon-btn" id="clearBtn">✕ Clear</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="output placeholder" id="output">Translation will appear here…</div>
+        <div class="panel-footer">
+          <span></span>
+          <button class="icon-btn" id="copyBtn" disabled>⎘ Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="action-bar">
+      <label class="auto-label">
+        <input type="checkbox" id="autoTranslate" checked>
+        Auto-translate
+      </label>
+      <button class="translate-btn" id="translateBtn" disabled>Loading model…</button>
+    </div>
+  </div>
+
+  <!-- Progress / status -->
+  <div class="progress-card visible" id="progressCard">
+    <div class="progress-header">
+      <span id="progressLabel">Initialising…</span>
+      <span id="progressPct"></span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="status-row">
+      <div class="status-text">
+        <span class="status-dot loading" id="statusDot"></span>
+        <span id="statusText">Starting worker…</span>
+      </div>
+      <span class="model-tag">NLLB-200-distilled-600M · 55 languages · cached after first load</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── Language table (NLLB-200 BCP-47 codes) ──────────────────────────────────
+const LANGUAGES = [
+  // European – Western
+  { code: 'eng_Latn', name: 'English',                region: 'European' },
+  { code: 'fra_Latn', name: 'French',                 region: 'European' },
+  { code: 'spa_Latn', name: 'Spanish',                region: 'European' },
+  { code: 'por_Latn', name: 'Portuguese',             region: 'European' },
+  { code: 'ita_Latn', name: 'Italian',                region: 'European' },
+  { code: 'deu_Latn', name: 'German',                 region: 'European' },
+  { code: 'nld_Latn', name: 'Dutch',                  region: 'European' },
+  { code: 'swe_Latn', name: 'Swedish',                region: 'European' },
+  { code: 'dan_Latn', name: 'Danish',                 region: 'European' },
+  { code: 'nob_Latn', name: 'Norwegian',              region: 'European' },
+  { code: 'fin_Latn', name: 'Finnish',                region: 'European' },
+  { code: 'pol_Latn', name: 'Polish',                 region: 'European' },
+  { code: 'ces_Latn', name: 'Czech',                  region: 'European' },
+  { code: 'slk_Latn', name: 'Slovak',                 region: 'European' },
+  { code: 'hun_Latn', name: 'Hungarian',              region: 'European' },
+  { code: 'ron_Latn', name: 'Romanian',               region: 'European' },
+  { code: 'cat_Latn', name: 'Catalan',                region: 'European' },
+  { code: 'ell_Grek', name: 'Greek',                  region: 'European' },
+  // European – Eastern / Cyrillic
+  { code: 'rus_Cyrl', name: 'Russian',                region: 'Eastern European' },
+  { code: 'ukr_Cyrl', name: 'Ukrainian',              region: 'Eastern European' },
+  { code: 'bul_Cyrl', name: 'Bulgarian',              region: 'Eastern European' },
+  { code: 'bel_Cyrl', name: 'Belarusian',             region: 'Eastern European' },
+  { code: 'srp_Cyrl', name: 'Serbian',                region: 'Eastern European' },
+  { code: 'hrv_Latn', name: 'Croatian',               region: 'Eastern European' },
+  // Middle Eastern
+  { code: 'arb_Arab', name: 'Arabic',                 region: 'Middle Eastern' },
+  { code: 'heb_Hebr', name: 'Hebrew',                 region: 'Middle Eastern' },
+  { code: 'pes_Arab', name: 'Persian (Farsi)',         region: 'Middle Eastern' },
+  { code: 'tur_Latn', name: 'Turkish',                region: 'Middle Eastern' },
+  // Indian
+  { code: 'hin_Deva', name: 'Hindi',                  region: 'Indian' },
+  { code: 'ben_Beng', name: 'Bengali',                region: 'Indian' },
+  { code: 'tam_Taml', name: 'Tamil',                  region: 'Indian' },
+  { code: 'tel_Telu', name: 'Telugu',                 region: 'Indian' },
+  { code: 'kan_Knda', name: 'Kannada',                region: 'Indian' },
+  { code: 'mal_Mlym', name: 'Malayalam',              region: 'Indian' },
+  { code: 'guj_Gujr', name: 'Gujarati',               region: 'Indian' },
+  { code: 'mar_Deva', name: 'Marathi',                region: 'Indian' },
+  { code: 'pan_Guru', name: 'Punjabi',                region: 'Indian' },
+  { code: 'urd_Arab', name: 'Urdu',                   region: 'Indian' },
+  { code: 'ory_Orya', name: 'Odia',                   region: 'Indian' },
+  { code: 'asm_Beng', name: 'Assamese',               region: 'Indian' },
+  // East Asian & South-East Asian
+  { code: 'zho_Hans', name: 'Chinese (Simplified)',   region: 'East Asian' },
+  { code: 'zho_Hant', name: 'Chinese (Traditional)', region: 'East Asian' },
+  { code: 'jpn_Jpan', name: 'Japanese',               region: 'East Asian' },
+  { code: 'kor_Hang', name: 'Korean',                 region: 'East Asian' },
+  { code: 'vie_Latn', name: 'Vietnamese',             region: 'East Asian' },
+  { code: 'tha_Thai', name: 'Thai',                   region: 'East Asian' },
+  { code: 'mya_Mymr', name: 'Burmese',                region: 'East Asian' },
+  { code: 'khm_Khmr', name: 'Khmer',                  region: 'East Asian' },
+  { code: 'ind_Latn', name: 'Indonesian',             region: 'East Asian' },
+  { code: 'zsm_Latn', name: 'Malay',                  region: 'East Asian' },
+  // African
+  { code: 'swh_Latn', name: 'Swahili',                region: 'African' },
+  { code: 'hau_Latn', name: 'Hausa',                  region: 'African' },
+  { code: 'yor_Latn', name: 'Yoruba',                 region: 'African' },
+  { code: 'amh_Ethi', name: 'Amharic',                region: 'African' },
+  { code: 'som_Latn', name: 'Somali',                 region: 'African' },
+  { code: 'zul_Latn', name: 'Zulu',                   region: 'African' },
+];
+
+// ─── Populate selects ─────────────────────────────────────────────────────────
+function buildSelects() {
+  const regions = [...new Set(LANGUAGES.map(l => l.region))];
+  ['srcLang', 'tgtLang'].forEach(id => {
+    const sel = document.getElementById(id);
+    regions.forEach(region => {
+      const grp = document.createElement('optgroup');
+      grp.label = region;
+      LANGUAGES.filter(l => l.region === region).forEach(lang => {
+        const opt = document.createElement('option');
+        opt.value = lang.code;
+        opt.textContent = lang.name;
+        grp.appendChild(opt);
+      });
+      sel.appendChild(grp);
+    });
+  });
+}
+buildSelects();
+document.getElementById('srcLang').value = 'eng_Latn';
+document.getElementById('tgtLang').value = 'hin_Deva';
+
+// ─── Web Worker ───────────────────────────────────────────────────────────────
+const WORKER_SRC = `
+import { pipeline, env, TextStreamer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/+esm';
+
+// Try local models first; fall back to remote download
+env.allowLocalModels  = true;
+env.localModelPath    = '/models/';
+env.allowRemoteModels = true;
+
+const MODEL_ID = 'Xenova/nllb-200-distilled-600M';
+let translator = null;
+
+async function load() {
+  translator = await pipeline('translation', MODEL_ID, {
+    dtype: 'q8',
+    progress_callback: p => self.postMessage({ type: 'progress', data: p }),
+  });
+}
+
+self.onmessage = async ({ data }) => {
+  if (data.type === 'load') {
+    try {
+      await load();
+      self.postMessage({ type: 'ready' });
+    } catch (e) {
+      self.postMessage({ type: 'error', message: e.message });
+    }
+  }
+
+  if (data.type === 'translate') {
+    if (!translator) {
+      self.postMessage({ type: 'error', message: 'Model not loaded yet.' });
+      return;
+    }
+    try {
+      self.postMessage({ type: 'translating' });
+
+      // Seq2seq models stream token-by-token through the decoder
+      const streamer = new TextStreamer(translator.tokenizer, {
+        skip_prompt: true,
+        skip_special_tokens: true,
+        callback_function: token => self.postMessage({ type: 'token', token }),
+      });
+
+      const out = await translator(data.text, {
+        src_lang: data.srcLang,
+        tgt_lang: data.tgtLang,
+        max_new_tokens: 512,
+        streamer,
+      });
+
+      self.postMessage({ type: 'done', result: out[0].translation_text });
+    } catch (e) {
+      self.postMessage({ type: 'error', message: e.message });
+    }
+  }
+};
+`;
+
+const worker = new Worker(
+  URL.createObjectURL(new Blob([WORKER_SRC], { type: 'application/javascript' })),
+  { type: 'module' }
+);
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const $input        = document.getElementById('input');
+const $output       = document.getElementById('output');
+const $translateBtn = document.getElementById('translateBtn');
+const $charCount    = document.getElementById('charCount');
+const $copyBtn      = document.getElementById('copyBtn');
+const $progressCard = document.getElementById('progressCard');
+const $progressFill = document.getElementById('progressFill');
+const $progressLabel= document.getElementById('progressLabel');
+const $progressPct  = document.getElementById('progressPct');
+const $statusDot    = document.getElementById('statusDot');
+const $statusText   = document.getElementById('statusText');
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let modelReady   = false;
+let translating  = false;
+let outputText   = '';
+let debounce     = null;
+
+// ─── Worker message handler ───────────────────────────────────────────────────
+worker.onmessage = ({ data }) => {
+  switch (data.type) {
+
+    case 'progress': {
+      const p = data.data;
+      if (p.status === 'downloading' || p.status === 'loading') {
+        const pct = p.total ? Math.round((p.loaded / p.total) * 100) : 0;
+        $progressFill.style.width = pct + '%';
+        $progressPct.textContent  = pct + '%';
+        const file = p.file ? p.file.split('/').pop() : 'files';
+        $progressLabel.textContent =
+          (p.status === 'downloading' ? 'Downloading ' : 'Loading ') + file + '…';
+      }
+      setStatus('loading', p.status === 'downloading'
+        ? 'Downloading model (one-time, then cached)…'
+        : 'Loading into memory…');
+      break;
+    }
+
+    case 'ready':
+      modelReady = true;
+      $translateBtn.disabled  = false;
+      $translateBtn.textContent = 'Translate';
+      $progressFill.style.width = '100%';
+      setStatus('ready', 'Model ready · running in your browser');
+      setTimeout(() => $progressCard.classList.remove('visible'), 2500);
+      break;
+
+    case 'translating':
+      translating = true;
+      outputText  = '';
+      renderOutput('', true);
+      $translateBtn.disabled    = true;
+      $translateBtn.textContent = 'Translating…';
+      break;
+
+    case 'token':
+      outputText += data.token;
+      renderOutput(outputText, true);
+      break;
+
+    case 'done':
+      translating = false;
+      outputText  = data.result;
+      renderOutput(outputText, false);
+      $translateBtn.disabled    = false;
+      $translateBtn.textContent = 'Translate';
+      $copyBtn.disabled = false;
+      break;
+
+    case 'error':
+      translating = false;
+      setStatus('error', 'Error: ' + data.message);
+      renderOutput('⚠️ ' + data.message, false);
+      $translateBtn.disabled    = !modelReady;
+      $translateBtn.textContent = modelReady ? 'Translate' : 'Error loading model';
+      break;
+  }
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function setStatus(state, text) {
+  $statusDot.className  = 'status-dot ' + state;
+  $statusText.textContent = text;
+}
+
+function renderOutput(text, streaming) {
+  if (!text) {
+    $output.textContent = 'Translation will appear here…';
+    $output.className   = 'output placeholder';
+    $copyBtn.disabled   = true;
+  } else {
+    $output.textContent = text;
+    $output.className   = streaming ? 'output streaming' : 'output';
+  }
+}
+
+function doTranslate() {
+  const text    = $input.value.trim();
+  const srcLang = document.getElementById('srcLang').value;
+  const tgtLang = document.getElementById('tgtLang').value;
+
+  if (!text || !modelReady || translating) return;
+
+  if (srcLang === tgtLang) {
+    renderOutput(text, false);
+    return;
+  }
+
+  worker.postMessage({ type: 'translate', text, srcLang, tgtLang });
+}
+
+// ─── Event listeners ─────────────────────────────────────────────────────────
+$input.addEventListener('input', () => {
+  const len = $input.value.length;
+  $charCount.textContent = `${len} / 2000`;
+  $charCount.className   = 'char-count' + (len > 1800 ? ' warn' : '');
+
+  if (document.getElementById('autoTranslate').checked) {
+    clearTimeout(debounce);
+    debounce = setTimeout(doTranslate, 800);
+  }
+});
+
+$translateBtn.addEventListener('click', doTranslate);
+
+document.getElementById('swapBtn').addEventListener('click', () => {
+  const src = document.getElementById('srcLang');
+  const tgt = document.getElementById('tgtLang');
+  [src.value, tgt.value] = [tgt.value, src.value];
+
+  const tmp = $input.value;
+  $input.value = outputText;
+  outputText   = tmp;
+  $charCount.textContent = `${$input.value.length} / 2000`;
+  renderOutput(outputText, false);
+  if ($input.value.trim()) doTranslate();
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  $input.value = '';
+  outputText   = '';
+  $charCount.textContent = '0 / 2000';
+  renderOutput('', false);
+});
+
+$copyBtn.addEventListener('click', async () => {
+  if (!outputText) return;
+  await navigator.clipboard.writeText(outputText);
+  $copyBtn.textContent = '✓ Copied!';
+  setTimeout(() => { $copyBtn.textContent = '⎘ Copy'; }, 1500);
+});
+
+// Language change → re-translate if there's already input
+['srcLang', 'tgtLang'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    if ($input.value.trim() && modelReady) doTranslate();
+  });
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+worker.postMessage({ type: 'load' });
+</script>
+</body>
+</html>
