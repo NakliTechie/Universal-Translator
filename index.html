@@ -73,8 +73,11 @@ h1 { font-size: 1.5rem; font-weight: 700; color: #1a202c; }
   background: #f8fafc;
   gap: 8px;
 }
-.lang-select {
-  flex: 1;
+/* ── Searchable language picker ── */
+.lang-picker { flex: 1; position: relative; }
+
+.picker-btn {
+  width: 100%;
   padding: 8px 12px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -82,12 +85,69 @@ h1 { font-size: 1.5rem; font-weight: 700; color: #1a202c; }
   background: white;
   color: #2d3748;
   cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.lang-select:focus {
+.picker-btn:focus, .picker-btn.open {
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
 }
+.picker-arrow { color: #a0aec0; font-size: 0.65rem; margin-left: 6px; flex-shrink: 0; }
+
+.picker-dropdown {
+  display: none;
+  flex-direction: column;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 200;
+  max-height: 280px;
+  overflow: hidden;
+}
+.picker-dropdown.open { display: flex; }
+
+.picker-search {
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.88rem;
+  outline: none;
+  width: 100%;
+  border-radius: 10px 10px 0 0;
+  font-family: inherit;
+}
+.picker-list { overflow-y: auto; flex: 1; }
+
+.picker-group-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #a0aec0;
+  padding: 8px 12px 3px;
+}
+.picker-option {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  font-size: 0.88rem;
+  color: #2d3748;
+  cursor: pointer;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: inherit;
+}
+.picker-option:hover  { background: #f0f4f8; }
+.picker-option.active { background: #ebf4ff; color: #667eea; font-weight: 600; }
 .swap-btn {
   background: white;
   border: 1px solid #e2e8f0;
@@ -275,9 +335,9 @@ textarea::placeholder { color: #a0aec0; }
   <div class="card">
     <!-- Language selector bar -->
     <div class="lang-bar">
-      <select id="srcLang" class="lang-select"></select>
+      <div class="lang-picker" id="srcLangWrap"></div>
       <button class="swap-btn" id="swapBtn" title="Swap languages">⇄</button>
-      <select id="tgtLang" class="lang-select"></select>
+      <div class="lang-picker" id="tgtLangWrap"></div>
     </div>
 
     <!-- Source / target panels -->
@@ -404,27 +464,103 @@ const LANGUAGES = [
   { code: 'zul_Latn', name: 'Zulu',                   region: 'African' },
 ];
 
-// ─── Populate selects ─────────────────────────────────────────────────────────
-function buildSelects() {
-  const regions = [...new Set(LANGUAGES.map(l => l.region))];
-  ['srcLang', 'tgtLang'].forEach(id => {
-    const sel = document.getElementById(id);
+// ─── Searchable language picker ──────────────────────────────────────────────
+class LangPicker {
+  constructor(wrapperId, defaultCode, onChangeFn) {
+    this.value    = defaultCode;
+    this.onChange = onChangeFn;
+    this.isOpen   = false;
+    this.wrapper  = document.getElementById(wrapperId);
+
+    this.wrapper.innerHTML = `
+      <button type="button" class="picker-btn">
+        <span class="picker-label">${this._nameFor(defaultCode)}</span>
+        <span class="picker-arrow">▾</span>
+      </button>
+      <div class="picker-dropdown">
+        <input class="picker-search" type="text" placeholder="Search language…" autocomplete="off" spellcheck="false">
+        <div class="picker-list"></div>
+      </div>`;
+
+    this.btn    = this.wrapper.querySelector('.picker-btn');
+    this.drop   = this.wrapper.querySelector('.picker-dropdown');
+    this.search = this.wrapper.querySelector('.picker-search');
+    this.list   = this.wrapper.querySelector('.picker-list');
+
+    this._renderList('');
+    this._bind();
+  }
+
+  _nameFor(code) { return LANGUAGES.find(l => l.code === code)?.name ?? code; }
+
+  _renderList(query) {
+    const q = query.toLowerCase().trim();
+    this.list.innerHTML = '';
+    const matches = q ? LANGUAGES.filter(l => l.name.toLowerCase().includes(q)) : null;
+    const regions = [...new Set(LANGUAGES.map(l => l.region))];
+
     regions.forEach(region => {
-      const grp = document.createElement('optgroup');
-      grp.label = region;
-      LANGUAGES.filter(l => l.region === region).forEach(lang => {
-        const opt = document.createElement('option');
-        opt.value = lang.code;
-        opt.textContent = lang.name;
-        grp.appendChild(opt);
+      const langs = (matches ?? LANGUAGES).filter(l => l.region === region);
+      if (!langs.length) return;
+      if (!q) {
+        const lbl = document.createElement('div');
+        lbl.className   = 'picker-group-label';
+        lbl.textContent = region;
+        this.list.appendChild(lbl);
+      }
+      langs.forEach(lang => {
+        const btn = document.createElement('button');
+        btn.type      = 'button';
+        btn.className = 'picker-option' + (lang.code === this.value ? ' active' : '');
+        btn.textContent  = lang.name;
+        btn.dataset.code = lang.code;
+        btn.addEventListener('mousedown', e => { e.preventDefault(); this._select(lang.code); });
+        this.list.appendChild(btn);
       });
-      sel.appendChild(grp);
     });
-  });
+  }
+
+  _select(code) {
+    this.value = code;
+    this.btn.querySelector('.picker-label').textContent = this._nameFor(code);
+    this._close();
+    this.onChange?.(code);
+  }
+
+  _open() {
+    this.isOpen = true;
+    this.drop.classList.add('open');
+    this.btn.classList.add('open');
+    this.search.value = '';
+    this._renderList('');
+    requestAnimationFrame(() => {
+      this.search.focus();
+      this.list.querySelector('.active')?.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  _close() {
+    this.isOpen = false;
+    this.drop.classList.remove('open');
+    this.btn.classList.remove('open');
+  }
+
+  _bind() {
+    this.btn.addEventListener('click', e => { e.stopPropagation(); this.isOpen ? this._close() : this._open(); });
+    this.search.addEventListener('input', () => this._renderList(this.search.value));
+    this.search.addEventListener('keydown', e => { if (e.key === 'Escape') this._close(); });
+    document.addEventListener('click', e => { if (!this.wrapper.contains(e.target)) this._close(); });
+  }
+
+  getValue()       { return this.value; }
+  setValue(code)   { this.value = code; this.btn.querySelector('.picker-label').textContent = this._nameFor(code); }
 }
-buildSelects();
-document.getElementById('srcLang').value = 'eng_Latn';
-document.getElementById('tgtLang').value = 'hin_Deva';
+
+// ─── Initialise pickers ───────────────────────────────────────────────────────
+const pickers = {
+  src: new LangPicker('srcLangWrap', 'eng_Latn', () => { if ($input.value.trim() && modelReady) doTranslate(); }),
+  tgt: new LangPicker('tgtLangWrap', 'hin_Deva', () => { if ($input.value.trim() && modelReady) doTranslate(); }),
+};
 
 // ─── Web Worker ───────────────────────────────────────────────────────────────
 const WORKER_SRC = `
@@ -593,8 +729,8 @@ function renderOutput(text, streaming) {
 
 function doTranslate() {
   const text    = $input.value.trim();
-  const srcLang = document.getElementById('srcLang').value;
-  const tgtLang = document.getElementById('tgtLang').value;
+  const srcLang = pickers.src.getValue();
+  const tgtLang = pickers.tgt.getValue();
 
   if (!text || !modelReady || translating) return;
 
@@ -621,9 +757,10 @@ $input.addEventListener('input', () => {
 $translateBtn.addEventListener('click', doTranslate);
 
 document.getElementById('swapBtn').addEventListener('click', () => {
-  const src = document.getElementById('srcLang');
-  const tgt = document.getElementById('tgtLang');
-  [src.value, tgt.value] = [tgt.value, src.value];
+  const srcCode = pickers.src.getValue();
+  const tgtCode = pickers.tgt.getValue();
+  pickers.src.setValue(tgtCode);
+  pickers.tgt.setValue(srcCode);
 
   const tmp = $input.value;
   $input.value = outputText;
@@ -647,12 +784,7 @@ $copyBtn.addEventListener('click', async () => {
   setTimeout(() => { $copyBtn.textContent = '⎘ Copy'; }, 1500);
 });
 
-// Language change → re-translate if there's already input
-['srcLang', 'tgtLang'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
-    if ($input.value.trim() && modelReady) doTranslate();
-  });
-});
+// (language-change re-translate is handled inside LangPicker's onChangeFn)
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 worker.postMessage({ type: 'load' });
