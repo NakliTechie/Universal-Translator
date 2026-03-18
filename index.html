@@ -35,7 +35,26 @@ h1 { font-size: 1.5rem; font-weight: 700; color: #1a202c; }
   border-radius: 20px;
   padding: 4px 12px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.4s, border-color 0.4s, color 0.4s;
 }
+.badge.loading {
+  background: #fffbeb;
+  border-color: #f6e05e;
+  color: #744210;
+}
+.badge-spinner {
+  width: 10px; height: 10px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.badge-icon { font-style: normal; }
 
 /* ── Card ── */
 .card {
@@ -247,7 +266,10 @@ textarea::placeholder { color: #a0aec0; }
 
   <header>
     <h1>🌍 Universal Translator</h1>
-    <span class="badge">⚡ Runs locally · No data sent</span>
+    <span class="badge loading" id="badge">
+      <span class="badge-spinner" id="badgeSpinner"></span>
+      <span id="badgeText">Loading model…</span>
+    </span>
   </header>
 
   <div class="card">
@@ -501,11 +523,15 @@ worker.onmessage = ({ data }) => {
 
     case 'ready':
       modelReady = true;
-      $translateBtn.disabled  = false;
+      $translateBtn.disabled    = false;
       $translateBtn.textContent = 'Translate';
       $progressFill.style.width = '100%';
       setStatus('ready', 'Model ready · running in your browser');
       setTimeout(() => $progressCard.classList.remove('visible'), 2500);
+      // Update badge → ready state
+      document.getElementById('badge').classList.remove('loading');
+      document.getElementById('badgeSpinner').style.display = 'none';
+      document.getElementById('badgeText').textContent = '⚡ Runs locally · No data sent';
       break;
 
     case 'translating':
